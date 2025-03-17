@@ -19,7 +19,12 @@ export const CameraViewer: React.FC<CameraViewerProps> = ({ userId = 'user1' }) 
     toggleCamera,
     switchCamera,
     error,
-  } = useEasyMeet(userId);
+  } = useEasyMeet(
+    userId,
+    [{ urls: 'stun:stun.l.google.com:19302' }],
+    (msg:any) => console.log(msg)
+    
+  );
 
   // Request permissions when component mounts
   useEffect(() => {
@@ -41,11 +46,11 @@ export const CameraViewer: React.FC<CameraViewerProps> = ({ userId = 'user1' }) 
   }, []);
 
   // Auto-start camera when system is ready
-  useEffect(() => {
-    if (isSystemReady && !isVideoOn) {
-      startCamera();
-    }
-  }, [isSystemReady, isVideoOn, startCamera]);
+//   useEffect(() => {
+//     if (isSystemReady && !isVideoOn) {
+//       startCamera();
+//     }
+//   }, [isSystemReady, isVideoOn, startCamera]);
 
   if (error) {
     return (
@@ -86,7 +91,7 @@ export const CameraViewer: React.FC<CameraViewerProps> = ({ userId = 'user1' }) 
       <View style={styles.controls}>
         <TouchableOpacity
           style={[styles.controlButton, isVideoOn ? styles.activeButton : {}]}
-          onPress={toggleCamera}
+          onPress={() => toggleCamera()}
         >
           <Ionicons
             name={isVideoOn ? "videocam" : "videocam-off"}
@@ -94,7 +99,7 @@ export const CameraViewer: React.FC<CameraViewerProps> = ({ userId = 'user1' }) 
             color="white"
           />
           <Text style={styles.buttonText}>
-            {isVideoOn ? 'Stop Camera' : 'Start Camera'}
+            {isVideoOn ? 'Stop Cam' : 'Start Camera'}
           </Text>
         </TouchableOpacity>
 
