@@ -1,20 +1,6 @@
-import {
-  MediaStream,
-  MediaStreamTrack,
-  RTCPeerConnection,
-  RTCIceCandidate,
-  RTCSessionDescription,
-  
-  mediaDevices,
-  registerGlobals,
-} from 'react-native-webrtc';
 
 import { Platform } from 'react-native';
 import 'react-native-get-random-values'; 
-import RTCDataChannel from 'react-native-webrtc/lib/typescript/RTCDataChannel';
-if(Platform.OS !== "web") {
-  registerGlobals();
-}
 
 interface PeerStateChangedHandler {
   (
@@ -1209,8 +1195,8 @@ export class WebrtcBase {
     }
   ) {
     try {
-      // Using react-native-webrtc's mediaDevices instead of mediaDevices
-      let videoStream = await mediaDevices.getUserMedia({
+      // Using react-native-webrtc's mediaDevices instead of navigator.mediaDevices
+      let videoStream = await navigator.mediaDevices.getUserMedia({
         video: cameraConfig.video,
         audio: false, // Handle audio separately
       });
@@ -1287,7 +1273,10 @@ export class WebrtcBase {
   }
 
   async _startScreenShare() {
-    let screenStream = await mediaDevices.getDisplayMedia();
+    let screenStream = await navigator.mediaDevices.getDisplayMedia({
+      video: true,
+      audio: false,
+    });
     this._ClearScreenVideoStreams(this._rtpScreenShareSenders);
     if (screenStream && screenStream.getVideoTracks().length > 0) {
       this._isScreenShareMuted = false;
@@ -1324,7 +1313,7 @@ export class WebrtcBase {
       }
 
       // Fallback generic approach - may not work on all platforms
-      let videoStream = await mediaDevices.getDisplayMedia?.();
+      let videoStream = await navigator.mediaDevices.getDisplayMedia?.();
       
       if (!videoStream) {
         this._emitError("Screen sharing not supported on this platform");
@@ -1392,7 +1381,7 @@ export class WebrtcBase {
     try {
       if (!this._audioTrack) {
         // Using react-native-webrtc's mediaDevices
-        let audioStream = await mediaDevices.getUserMedia({ 
+        let audioStream = await navigator.mediaDevices.getUserMedia({ 
           video: false,
           audio: true,
         });

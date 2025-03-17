@@ -7,9 +7,8 @@
         "./*"
       ]
     },
-    "types": ["react-native-web"],
     "allowJs": true,
-    "skipLibCheck": true,
+    "skipLibCheck": true
    
   },
   "include": [
