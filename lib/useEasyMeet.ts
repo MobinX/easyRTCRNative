@@ -6,8 +6,14 @@ import {
     useState,
   } from "react";
   import { FileState, peerState, WebrtcBase } from "./webrtcBase";
-  import { MediaStream } from "react-native-webrtc";
+  import { MediaStream as NMediaStream, registerGlobals } from "react-native-webrtc";
+import { Platform } from "react-native";
   
+if(Platform.OS !== "web"){  
+
+  registerGlobals();
+}
+
   export interface easyMeetInterface {
     webRTCBaseRef: MutableRefObject<WebrtcBase | null>;
     error: { type: "sys-error" | "webrtc-error"; message: string } | null;
@@ -32,9 +38,9 @@ import {
     isAudioOn: boolean;
     isVideoOn: boolean;
     isScreenShareOn: boolean;
-    audioStream: MediaStream | null;
-    videoStream: MediaStream | null;
-    screenShareStream: MediaStream | null;
+    audioStream: MediaStream | NMediaStream | null;
+    videoStream: MediaStream | NMediaStream | null;
+    screenShareStream: MediaStream | NMediaStream | null;
     newDataChannelMsg: { from: string; msg: string } | null;
     fileSharingCompleted: { file: FileState; objectUrl: string } | null;
     fileSharingState: FileState | null;
@@ -72,9 +78,9 @@ import {
    * isAudioOn: boolean
    * isVideoOn: boolean
    * isScreenShareOn: boolean
-   * audioStream: MediaStream | null
-   * videoStream: MediaStream | null
-   * screenShareStream: MediaStream | null
+   * audioStream: MediaStream | NMediaStream | null
+   * videoStream: MediaStream | NMediaStream | null
+   * screenShareStream: MediaStream | NMediaStream | null
    * newDataChannelMsg: {from: string; msg: string} | null
    * fileSharingCompleted: {file:FileState , objectUrl: string} | null
    * fileSharingState: FileState | null
@@ -95,10 +101,10 @@ import {
 
     const [isVideoOn, setIsVideoOn] = useState<boolean>(false);
     const [isScreenShareOn, setIsScreenShareOn] = useState<boolean>(false);
-    const [audioStream, setAudioStream] = useState<MediaStream | null>(null);
-    const [videoStream, setVideoStream] = useState<MediaStream | null>(null);
+    const [audioStream, setAudioStream] = useState<MediaStream | NMediaStream | null>(null);
+    const [videoStream, setVideoStream] = useState<MediaStream | NMediaStream | null>(null);
     const [screenShareStream, setScreenShareStream] =
-      useState<MediaStream | null>(null);
+      useState<MediaStream | NMediaStream | null>(null);
     const [newDataChannelMsg, setDataChennelMsg] = useState<{
       from: string;
       msg: string;
@@ -130,19 +136,19 @@ import {
           setPeers(peersState);
         });
         webRTCBaseRef.current.onAudioStateChange(
-          (state: boolean, stream: MediaStream | null) => {
+          (state: boolean, stream: MediaStream | NMediaStream | null) => {
             setIsAudioOn(state);
             setAudioStream(stream);
           }
         );
         webRTCBaseRef.current.onCameraVideoStateChange(
-          (state: boolean, stream: MediaStream | null) => {
+          (state: boolean, stream: MediaStream | NMediaStream | null) => {
             setIsVideoOn(state);
             setVideoStream(stream);
           }
         );
         webRTCBaseRef.current.onScreenShareVideoStateChange(
-          (state: boolean, stream: MediaStream | null) => {
+          (state: boolean, stream: MediaStream | NMediaStream | null) => {
             setIsScreenShareOn(state);
             setScreenShareStream(stream);
           }

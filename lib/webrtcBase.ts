@@ -1,17 +1,20 @@
 import {
-  MediaStream,
-  MediaStreamTrack,
-  RTCPeerConnection,
-  RTCIceCandidate,
-  RTCSessionDescription,
+  // MediaStream,
+  // MediaStreamTrack,
+  // RTCPeerConnection,
+  // RTCIceCandidate,
+  // RTCSessionDescription,
   
-  mediaDevices,
+  // mediaDevices,
   registerGlobals,
 } from 'react-native-webrtc';
 
 import { Platform } from 'react-native';
-import 'react-native-get-random-values'; // Required for UUID generation
-import RTCDataChannel from 'react-native-webrtc/lib/typescript/RTCDataChannel';
+import 'react-native-get-random-values'; 
+
+if(Platform.OS !== "web") {
+  registerGlobals();
+}
 
 interface PeerStateChangedHandler {
   (
@@ -99,7 +102,7 @@ export class WebrtcBase {
   private _serverFn: Function;
   private _my_connid: string = "";
 
-  private _dataChannels: { [id: string]: RTCDataChannel | null } = {};
+  private _dataChannels: { [id: string]: RTCDataChannel  | null } = {};
 
   // callback functions array
 
@@ -119,7 +122,7 @@ export class WebrtcBase {
     serverFn: Function
   ) {
     // Register WebRTC globals if needed
-    registerGlobals();
+    // registerGlobals();
     
     this._my_connid = my_connid;
     this._serverFn = serverFn;
@@ -164,7 +167,7 @@ export class WebrtcBase {
       });
 
       if (politePeerState) {
-        this._dataChannels[connid] = connection.createDataChannel(connid);
+       (this._dataChannels[connid] as unknown as RTCDataChannel) = connection.createDataChannel(connid);
         if (this._dataChannels[connid]) {
           this._dataChannels[connid].addEventListener('open', () => {
             console.log(connid + " data channel onopen");
@@ -190,13 +193,13 @@ export class WebrtcBase {
           let fileid = event.channel.label.replace("file-", "");
 
           this._fileTransferingDataChennels[fileid] = event.channel;
-          this._fileTransferingDataChennels[fileid].addEventListener('open', () => {
-            console.log(connid + "remote file data channel onopen");
+          (this._fileTransferingDataChennels[fileid] as unknown as RTCDataChannel)?.addEventListener('open', () => {
+            console.log(connid + " remote file data channel onopen");
           });
-          this._fileTransferingDataChennels[fileid].addEventListener('close', () => {
-            console.log(connid + "remote file data channel onclose");
+          (this._fileTransferingDataChennels[fileid] as unknown as RTCDataChannel)?.addEventListener('close', () => {
+            console.log(connid + " remote file data channel onclose");
           });
-          this._fileTransferingDataChennels[fileid].addEventListener('message', (event) => {
+          (this._fileTransferingDataChennels[fileid] as unknown as RTCDataChannel)?.addEventListener('message', (event) => {
             console.log(
               connid + "remote file data channel onmessage ",
               event.data
@@ -243,7 +246,7 @@ export class WebrtcBase {
             this._emitFileStateChange(fileid);
 
           });
-          this._fileTransferingDataChennels[fileid].addEventListener('error', (event) => {
+          (this._fileTransferingDataChennels[fileid] as unknown as RTCDataChannel)?.addEventListener('error', (event) => {
             console.log(connid + "file data channel onerror", event);
             this._emitError("Data Channel Error, please refresh the page");
           });
@@ -827,22 +830,22 @@ export class WebrtcBase {
               "file-" + data.fileId
             );
           if (this._fileTransferingDataChennels[data.fileId]) {
-            this._fileTransferingDataChennels[data.fileId]!.addEventListener('open', () => {
+            (this._fileTransferingDataChennels[data.fileId] as unknown as RTCDataChannel)!.addEventListener('open', () => {
               console.log(conId + "file data channel onopen " + data.fileId);
             });
-            this._fileTransferingDataChennels[data.fileId]!.binaryType =
+            (this._fileTransferingDataChennels[data.fileId] as unknown as RTCDataChannel)!.binaryType =
               "arraybuffer";
-            this._fileTransferingDataChennels[data.fileId]!.addEventListener('close', () => {
+            (this._fileTransferingDataChennels[data.fileId] as unknown as RTCDataChannel)!.addEventListener('close', () => {
               console.log(conId + "file data channel onclose " + data.fileId);
               delete this._fileTransferingDataChennels[data.fileId];
             });
-            this._fileTransferingDataChennels[data.fileId]!.addEventListener('message', (e) => {
+            (this._fileTransferingDataChennels[data.fileId] as unknown as RTCDataChannel)!.addEventListener('message', (e) => {
               console.log(conId + "file data channel onmessage " + data.fileId);
               let msg = JSON.parse(typeof(e.data) === "string" ? e.data : e.data.toString());
               // this._emitDataChannelMsgCallback(conId, msg);
             }); // though sender never get msg but sends msg
 
-            this._fileTransferingDataChennels[data.fileId]!.addEventListener('error', (e) => {
+            (this._fileTransferingDataChennels[data.fileId] as unknown as RTCDataChannel)!.addEventListener('error', (e) => {
               console.log(conId + "file data channel onerror " + data.fileId);
               this._emitError("Failed to transfer file " + data.fileName);
             });
@@ -872,7 +875,7 @@ export class WebrtcBase {
         this._fileTransferingFileReaders[data.fileId]!.onload = (e) => {
           console.log("read file " + data.fileName);
           if (e.target?.result && typeof e.target?.result != null) {
-            this._fileTransferingDataChennels[data.fileId]?.send(
+            (this._fileTransferingDataChennels[data.fileId] as unknown as RTCDataChannel)?.send(
               e.target?.result as ArrayBuffer
             );
             this._fileStates[data.fileId] = {
@@ -905,7 +908,7 @@ export class WebrtcBase {
               );
               console.log(
                 "data channel bufferedAmount",
-                this._fileTransferingDataChennels[data.fileId]!.bufferedAmount
+                (this._fileTransferingDataChennels[data.fileId] as unknown as RTCDataChannel)!.bufferedAmount
               );
 
               let objectURL = URL.createObjectURL(this._pendingFiles[data.fileId]);
@@ -924,10 +927,10 @@ export class WebrtcBase {
           console.log(
             "data channel bufferedAmount remaining",
 
-            this._fileTransferingDataChennels[data.fileId]!.bufferedAmount
+            (this._fileTransferingDataChennels[data.fileId] as unknown as RTCDataChannel)!.bufferedAmount
           );
           if (
-            this._fileTransferingDataChennels[data.fileId]!.bufferedAmount >
+            (this._fileTransferingDataChennels[data.fileId] as unknown as RTCDataChannel)!.bufferedAmount >
             955350
           ) {
             // wait until data channel queue is empty by recursively cheking bufferedAmount
@@ -1207,7 +1210,7 @@ export class WebrtcBase {
   ) {
     try {
       // Using react-native-webrtc's mediaDevices instead of navigator.mediaDevices
-      let videoStream = await mediaDevices.getUserMedia({
+      let videoStream = await navigator.mediaDevices.getUserMedia({
         video: cameraConfig.video,
         audio: false, // Handle audio separately
       });
@@ -1284,7 +1287,10 @@ export class WebrtcBase {
   }
 
   async _startScreenShare() {
-    let screenStream = await mediaDevices.getDisplayMedia();
+    let screenStream = await navigator.mediaDevices.getDisplayMedia({
+      video: true,
+      audio: false,
+    });
     this._ClearScreenVideoStreams(this._rtpScreenShareSenders);
     if (screenStream && screenStream.getVideoTracks().length > 0) {
       this._isScreenShareMuted = false;
@@ -1321,7 +1327,7 @@ export class WebrtcBase {
       }
 
       // Fallback generic approach - may not work on all platforms
-      let videoStream = await mediaDevices.getDisplayMedia?.();
+      let videoStream = await navigator.mediaDevices.getDisplayMedia?.();
       
       if (!videoStream) {
         this._emitError("Screen sharing not supported on this platform");
@@ -1389,7 +1395,7 @@ export class WebrtcBase {
     try {
       if (!this._audioTrack) {
         // Using react-native-webrtc's mediaDevices
-        let audioStream = await mediaDevices.getUserMedia({
+        let audioStream = await navigator.mediaDevices.getUserMedia({ 
           video: false,
           audio: true,
         });

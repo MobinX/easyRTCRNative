@@ -1,49 +1,50 @@
 import React, { useEffect } from 'react';
 import { StyleSheet, View, Text, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
-import { RTCView } from 'react-native-webrtc';
-import { useEasyMeet } from '../lib/useEasyMeet';
+
+// import { useEasyMeet } from '../lib/useEasyMeet';
 import { Ionicons } from '@expo/vector-icons';
 import { requestMultiple, PERMISSIONS } from 'react-native-permissions';
+// import RTXView from '@/lib/RTXView';
 
 interface CameraViewerProps {
   userId?: string;
 }
 
 export const CameraViewer: React.FC<CameraViewerProps> = ({ userId = 'user1' }) => {
-  const {
-    isVideoOn,
-    videoStream,
-    isSystemReady,
-    isFrontCamera,
-    startCamera,
-    toggleCamera,
-    switchCamera,
-    error,
-  } = useEasyMeet(
-    userId,
-    [{ urls: 'stun:stun.l.google.com:19302' }],
-    (msg:any) => console.log(msg)
+  // const {
+  //   isVideoOn,
+  //   videoStream,
+  //   isSystemReady,
+  //   isFrontCamera,
+  //   startCamera,
+  //   toggleCamera,
+  //   switchCamera,
+  //   error,
+  // } = useEasyMeet(
+  //   userId,
+  //   [{ urls: 'stun:stun.l.google.com:19302' }],
+  //   (msg:any) => console.log(msg)
     
-  );
+  // );
 
-  // Request permissions when component mounts
-  useEffect(() => {
-    const requestPermissions = async () => {
-      if (Platform.OS === 'android') {
-        await requestMultiple([
-          PERMISSIONS.ANDROID.CAMERA,
-          PERMISSIONS.ANDROID.RECORD_AUDIO
-        ]);
-      } else if (Platform.OS === 'ios') {
-        await requestMultiple([
-          PERMISSIONS.IOS.CAMERA,
-          PERMISSIONS.IOS.MICROPHONE
-        ]);
-      }
-    };
+  // // Request permissions when component mounts
+  // useEffect(() => {
+  //   const requestPermissions = async () => {
+  //     if (Platform.OS === 'android') {
+  //       await requestMultiple([
+  //         PERMISSIONS.ANDROID.CAMERA,
+  //         PERMISSIONS.ANDROID.RECORD_AUDIO
+  //       ]);
+  //     } else if (Platform.OS === 'ios') {
+  //       await requestMultiple([
+  //         PERMISSIONS.IOS.CAMERA,
+  //         PERMISSIONS.IOS.MICROPHONE
+  //       ]);
+  //     }
+  //   };
     
-    requestPermissions();
-  }, []);
+  //   requestPermissions();
+  // }, []);
 
   // Auto-start camera when system is ready
 //   useEffect(() => {
@@ -52,61 +53,69 @@ export const CameraViewer: React.FC<CameraViewerProps> = ({ userId = 'user1' }) 
 //     }
 //   }, [isSystemReady, isVideoOn, startCamera]);
 
-  if (error) {
-    return (
-      <View style={styles.errorContainer}>
-        <Text style={styles.errorText}>Error: {error.message}</Text>
-        <TouchableOpacity style={styles.button} onPress={() => startCamera()}>
-          <Text style={styles.buttonText}>Try Again</Text>
-        </TouchableOpacity>
-      </View>
-    );
-  }
+  // if (error) {
+  //   return (
+  //     <View style={styles.errorContainer}>
+  //       <Text style={styles.errorText}>Error: {error.message}</Text>
+  //       <TouchableOpacity style={styles.button} onPress={() => startCamera()}>
+  //         <Text style={styles.buttonText}>Try Again</Text>
+  //       </TouchableOpacity>
+  //     </View>
+  //   );
+  // }
 
-  if (!isSystemReady) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#0000ff" />
-        <Text style={styles.loadingText}>Initializing camera...</Text>
-      </View>
-    );
-  }
+  // if (!isSystemReady) {
+  //   return (
+  //     <View style={styles.loadingContainer}>
+  //       <ActivityIndicator size="large" color="#0000ff" />
+  //       <Text style={styles.loadingText}>Initializing camera...</Text>
+  //     </View>
+  //   );
+  // }
 
   return (
     <View style={styles.container}>
-      {isVideoOn && videoStream ? (
-        <RTCView
-          streamURL={videoStream.toURL()}
+      {/* {isVideoOn && videoStream ? (
+        // <RTXView
+        //   stream={videoStream as MediaStream}
+         
+        //   style={styles.videoStream}
+        // />
+        <View
           style={styles.videoStream}
-          objectFit="cover"
-          mirror={isFrontCamera}
-        />
-      ) : (
+          >
+            </View>
+      ) : ( */}
         <View style={styles.noVideoContainer}>
           <Ionicons name="videocam-off" size={64} color="#888" />
-          <Text style={styles.noVideoText}>Camera is off</Text>
+          <Text style={styles.noVideoText}>Camera is </Text>
         </View>
-      )}
+      {/* )} */}
 
       <View style={styles.controls}>
         <TouchableOpacity
-          style={[styles.controlButton, isVideoOn ? styles.activeButton : {}]}
-          onPress={() => toggleCamera()}
+          style={[styles.controlButton, true ? styles.activeButton : {}]}
+          onPress={() => {}}
+          // onPress={isVideoOn ? toggleCamera : startCamera}
         >
           <Ionicons
-            name={isVideoOn ? "videocam" : "videocam-off"}
+            // name={isVideoOn ? "videocam" : "videocam-off"}
+            name="videocam"
             size={28}
             color="white"
           />
           <Text style={styles.buttonText}>
-            {isVideoOn ? 'Stop Cam' : 'Start Camera'}
+            {/* {isVideoOn ? 'Stop Cam' : 'Start Camera'}
+             */}
+            Start Camera
           </Text>
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.controlButton, isVideoOn ? {} : styles.disabledButton]}
-          onPress={switchCamera}
-          disabled={!isVideoOn}
+          // style={[styles.controlButton, isVideoOn ? {} : styles.disabledButton]}
+          // onPress={switchCamera}
+          // disabled={!isVideoOn}
+          style={[styles.controlButton, {}]}
         >
           <Ionicons name="camera-reverse" size={28} color="white" />
           <Text style={styles.buttonText}>Switch Camera</Text>
