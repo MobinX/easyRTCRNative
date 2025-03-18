@@ -171,111 +171,111 @@ export class WebrtcBase {
           }
         });
 
-        if (politePeerState) {
-          (this._dataChannels[connid] as unknown as RTCDataChannel) = connection.createDataChannel(connid);
-          if (this._dataChannels[connid]) {
-            this._dataChannels[connid].addEventListener('open', () => {
-              console.log(connid + " data channel onopen");
-            });
-            this._dataChannels[connid].addEventListener('close', () => {
-              console.log(connid + " data channel onclose");
-            });
-            this._dataChannels[connid].addEventListener('message', (event) => {
-              console.log(connid + " data channel onmessage", event.data);
-              this._emitDataChannelMsgCallback(connid, event.data);
-            });
-            this._dataChannels[connid].addEventListener('error', (event) => {
-              console.log(connid + " data channel onerror", event);
-              this._emitError("Data Channel Error, please refresh the page");
-            });
-          }
-        }
+        // if (politePeerState) {
+        //   (this._dataChannels[connid] as unknown as RTCDataChannel) = connection.createDataChannel(connid);
+        //   if (this._dataChannels[connid]) {
+        //     this._dataChannels[connid].addEventListener('open', () => {
+        //       console.log(connid + " data channel onopen");
+        //     });
+        //     this._dataChannels[connid].addEventListener('close', () => {
+        //       console.log(connid + " data channel onclose");
+        //     });
+        //     this._dataChannels[connid].addEventListener('message', (event) => {
+        //       console.log(connid + " data channel onmessage", event.data);
+        //       this._emitDataChannelMsgCallback(connid, event.data);
+        //     });
+        //     this._dataChannels[connid].addEventListener('error', (event) => {
+        //       console.log(connid + " data channel onerror", event);
+        //       this._emitError("Data Channel Error, please refresh the page");
+        //     });
+        //   }
+        // }
 
-        //create data channel
-        connection.addEventListener('datachannel', (event) => {
-          console.log(connid + " ondatachannel", event);
-          if (event.channel.label.startsWith("file-")) {
-            let fileid = event.channel.label.replace("file-", "");
+        // //create data channel
+        // connection.addEventListener('datachannel', (event) => {
+        //   console.log(connid + " ondatachannel", event);
+        //   if (event.channel.label.startsWith("file-")) {
+        //     let fileid = event.channel.label.replace("file-", "");
 
-            this._fileTransferingDataChennels[fileid] = event.channel;
-            (this._fileTransferingDataChennels[fileid] as unknown as RTCDataChannel)?.addEventListener('open', () => {
-              console.log(connid + " remote file data channel onopen");
-            });
-            (this._fileTransferingDataChennels[fileid] as unknown as RTCDataChannel)?.addEventListener('close', () => {
-              console.log(connid + " remote file data channel onclose");
-            });
-            (this._fileTransferingDataChennels[fileid] as unknown as RTCDataChannel)?.addEventListener('message', (event) => {
-              console.log(
-                connid + "remote file data channel onmessage ",
-                event.data
-              );
-              const dataSize = event.data instanceof ArrayBuffer ? event.data.byteLength :
-                (event.data instanceof Blob ? event.data.size :
-                  (typeof event.data === 'string' ? event.data.length : 0));
+        //     this._fileTransferingDataChennels[fileid] = event.channel;
+        //     (this._fileTransferingDataChennels[fileid] as unknown as RTCDataChannel)?.addEventListener('open', () => {
+        //       console.log(connid + " remote file data channel onopen");
+        //     });
+        //     (this._fileTransferingDataChennels[fileid] as unknown as RTCDataChannel)?.addEventListener('close', () => {
+        //       console.log(connid + " remote file data channel onclose");
+        //     });
+        //     (this._fileTransferingDataChennels[fileid] as unknown as RTCDataChannel)?.addEventListener('message', (event) => {
+        //       console.log(
+        //         connid + "remote file data channel onmessage ",
+        //         event.data
+        //       );
+        //       const dataSize = event.data instanceof ArrayBuffer ? event.data.byteLength :
+        //         (event.data instanceof Blob ? event.data.size :
+        //           (typeof event.data === 'string' ? event.data.length : 0));
 
-              this._fileStates[fileid] = {
-                ...this._fileStates[fileid],
-                receivedArrayBuffer: this._fileStates[
-                  fileid
-                ].receivedArrayBuffer.concat([event.data]),
-                completedSize:
-                  this._fileStates[fileid].completedSize + dataSize,
-                progress:
-                  (this._fileStates[fileid].completedSize /
-                    this._fileStates[fileid].totalSize) *
-                  100,
-                transferSpeed:
-                  dataSize /
-                  (Date.now() - this._fileStates[fileid].lastTimeStamp),
-                lastTimeStamp: Date.now(),
-              };
-              console.log(
-                this._fileStates[fileid].completedSize ==
-                this._fileStates[fileid].totalSize
-              );
-              if (
-                this._fileStates[fileid].completedSize ==
-                this._fileStates[fileid].totalSize
-              ) {
-                let contentArrayblob = new Blob(
-                  this._fileStates[fileid].receivedArrayBuffer
-                );
-                let objectURL = URL.createObjectURL(contentArrayblob);
-                console.log(objectURL);
-                this._emitFileTransferCompleted(
-                  this._fileStates[fileid],
-                  objectURL
-                );
-                return;
-              }
-              this._emitFileStateChange(fileid);
+        //       this._fileStates[fileid] = {
+        //         ...this._fileStates[fileid],
+        //         receivedArrayBuffer: this._fileStates[
+        //           fileid
+        //         ].receivedArrayBuffer.concat([event.data]),
+        //         completedSize:
+        //           this._fileStates[fileid].completedSize + dataSize,
+        //         progress:
+        //           (this._fileStates[fileid].completedSize /
+        //             this._fileStates[fileid].totalSize) *
+        //           100,
+        //         transferSpeed:
+        //           dataSize /
+        //           (Date.now() - this._fileStates[fileid].lastTimeStamp),
+        //         lastTimeStamp: Date.now(),
+        //       };
+        //       console.log(
+        //         this._fileStates[fileid].completedSize ==
+        //         this._fileStates[fileid].totalSize
+        //       );
+        //       if (
+        //         this._fileStates[fileid].completedSize ==
+        //         this._fileStates[fileid].totalSize
+        //       ) {
+        //         let contentArrayblob = new Blob(
+        //           this._fileStates[fileid].receivedArrayBuffer
+        //         );
+        //         let objectURL = URL.createObjectURL(contentArrayblob);
+        //         console.log(objectURL);
+        //         this._emitFileTransferCompleted(
+        //           this._fileStates[fileid],
+        //           objectURL
+        //         );
+        //         return;
+        //       }
+        //       this._emitFileStateChange(fileid);
 
-            });
-            (this._fileTransferingDataChennels[fileid] as unknown as RTCDataChannel)?.addEventListener('error', (event) => {
-              console.log(connid + "file data channel onerror", event);
-              this._emitError("Data Channel Error, please refresh the page");
-            });
+        //     });
+        //     (this._fileTransferingDataChennels[fileid] as unknown as RTCDataChannel)?.addEventListener('error', (event) => {
+        //       console.log(connid + "file data channel onerror", event);
+        //       this._emitError("Data Channel Error, please refresh the page");
+        //     });
 
-            this._dataChannels[connid] = event.channel;
-            if (this._dataChannels[connid]) {
-              this._dataChannels[connid].addEventListener('open', () => {
-                console.log(connid + " data channel onopen");
-              });
-              this._dataChannels[connid].addEventListener('close', () => {
-                console.log(connid + " data channel onclose");
-              });
-              this._dataChannels[connid].addEventListener('message', (event) => {
-                console.log(connid + " data channel onmessage", event.data);
-                this._emitDataChannelMsgCallback(connid, event.data);
-              });
-              this._dataChannels[connid].addEventListener('error', (event) => {
-                console.log(connid + " data channel onerror", event);
-                this._emitError("Data Channel Error, please refresh the page");
-              });
-            }
-            this._emitError("Data Channel Error, please refresh the page");
-          }
-        });
+        //     this._dataChannels[connid] = event.channel;
+        //     if (this._dataChannels[connid]) {
+        //       this._dataChannels[connid].addEventListener('open', () => {
+        //         console.log(connid + " data channel onopen");
+        //       });
+        //       this._dataChannels[connid].addEventListener('close', () => {
+        //         console.log(connid + " data channel onclose");
+        //       });
+        //       this._dataChannels[connid].addEventListener('message', (event) => {
+        //         console.log(connid + " data channel onmessage", event.data);
+        //         this._emitDataChannelMsgCallback(connid, event.data);
+        //       });
+        //       this._dataChannels[connid].addEventListener('error', (event) => {
+        //         console.log(connid + " data channel onerror", event);
+        //         this._emitError("Data Channel Error, please refresh the page");
+        //       });
+        //     }
+        //     this._emitError("Data Channel Error, please refresh the page");
+        //   }
+        // });
 
         connection.addEventListener('negotiationneeded', async (event) => {
           console.log(connid + " onnegotiationneeded", event);
@@ -712,14 +712,14 @@ export class WebrtcBase {
       // Clear the remote video stream completely
       if (this._remoteVideoStreams[from_connid]) {
         // Get all tracks and explicitly stop them
-        const tracks = this._remoteVideoStreams[from_connid].getVideoTracks();
-        tracks.forEach(track => {
-          track.stop();
-          this._remoteVideoStreams[from_connid]?.removeTrack(track);
-        });
-
+      this._remoteVideoStreams[from_connid] = null;
         // Force an update to the UI
         this._updatePeerState();
+      }
+      if (this._peerConnections[from_connid]) {
+        this._rtpVideoSenders[from_connid] = null;  
+        this._peerConnections[from_connid].close();
+        this._peerConnections[from_connid] = null;
       }
       return;
     }
@@ -728,15 +728,8 @@ export class WebrtcBase {
 
     // Rest of your existing code...
     if (msg.iceCandidate) {
-      if (!this._peerConnections[from_connid]) {
-        console.log(
-          "peer " +
-          from_connid +
-          " not found , creating connection for ice candidate"
-        );
+      await this.createConnection(from_connid, this._politePeerStates[from_connid] ? this._politePeerStates[from_connid] : false, extraInfo);
 
-        await this.createConnection(from_connid, false, extraInfo);
-      }
       try {
         if (msg.forAudio) {
           await this._peerConnectionsForAudio[
@@ -756,12 +749,9 @@ export class WebrtcBase {
       }
     } else if (msg.offer) {
       console.log(from_connid, " offer", msg.offer);
-      if (!this._peerConnections[from_connid]) {
-        console.log(
-          "peer " + from_connid + " not found , creating connection for offer"
-        );
-        await this.createConnection(from_connid, false, extraInfo);
-      }
+   
+        await this.createConnection(from_connid, this._politePeerStates[from_connid] ? this._politePeerStates[from_connid] : false, extraInfo);
+      
       try {
         if (msg.screenid)
           this._remoteScreenShareTrackIds[from_connid] = msg.screenid;
@@ -1473,6 +1463,9 @@ export class WebrtcBase {
         this._AlterAudioVideoSenders(this._videoTrack, this._rtpVideoSenders);
       }
       this._isVideoMuted = false;
+      for(let connid in this._peerConnections) {
+        this.createConnection(connid, this._politePeerStates[connid]);
+      }
     } catch (e) {
       console.log(e);
       this._emitError(
@@ -1524,14 +1517,14 @@ export class WebrtcBase {
     this._isVideoMuted = true;
 
     // Send explicit signal to all peers that camera is off
-    for (let connid in this._peerConnections) {
-      this._serverFn(
-        JSON.stringify({
-          videoOff: true, // This signal tells remote peers to clear the video track
-        }),
-        connid
-      );
-    }
+    // for (let connid in this._peerConnections) {
+    //    this._serverFn(
+    //     JSON.stringify({
+    //       videoOff: true, // This signal tells remote peers to clear the video track
+    //     }),
+    //     connid
+    //   );
+    // }
   }
 
   async toggleCamera(
