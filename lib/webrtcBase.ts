@@ -67,6 +67,9 @@ export class WebrtcBase {
   private _peerConnectionsForScreenShare: {
     [id: string]: RTCPeerConnection | null;
   } = {};
+  private _peerConnectionsForAudio: {
+    [id: string]: RTCPeerConnection | null;
+  } = {};
 
   private _peers_ids: { [id: string]: string | null } = {};
   private _peersInfo: { [id: string]: any | null } = {};
@@ -75,6 +78,7 @@ export class WebrtcBase {
 
   private _offferMakingStatePeers: { [id: string]: boolean } = {};
   private _offferMakingStatePeersForScreenShare: { [id: string]: boolean } = {};
+  private _offferMakingStatePeersForAudio: { [id: string]: boolean } = {};
 
   // file transfers
   private _fileStates: { [fileid: string]: FileState } = {};
@@ -136,122 +140,39 @@ export class WebrtcBase {
     extraInfo: any | null = null
   ) {
     if (this._iceConfiguration && !this._peerConnections[connid]) {
-      let connection = new RTCPeerConnection(this._iceConfiguration);
+      if (!this._peerConnections[connid]) {
+        let connection = new RTCPeerConnection(this._iceConfiguration);
 
-      connection.addEventListener('icecandidate', (event) => {
-        if (event.candidate) {
-          this._serverFn(
-            JSON.stringify({ iceCandidate: event.candidate }),
-            connid
+        connection.addEventListener('icecandidate', (event) => {
+          if (event.candidate) {
+            this._serverFn(
+              JSON.stringify({ iceCandidate: event.candidate }),
+              connid
+            );
+          }
+        });
+
+        connection.addEventListener('icecandidateerror', (event) => {
+          console.log(connid + " onicecandidateerror", event);
+          // this._emitError("Failed to Gather ICE Candidate");
+        });
+
+        connection.addEventListener('icegatheringstatechange', (event) => {
+          console.log(connid + " onicegatheringstatechange", event);
+        });
+
+        connection.addEventListener('iceconnectionstatechange', () => {
+          console.log(
+            connid + " peer ice connection state: ",
+            connection.iceConnectionState
           );
-        }
-      });
+          if (connection.iceConnectionState === "failed") {
+            connection.restartIce();
+          }
+        });
 
-      connection.addEventListener('icecandidateerror', (event) => {
-        console.log(connid + " onicecandidateerror", event);
-        // this._emitError("Failed to Gather ICE Candidate");
-      });
-
-      connection.addEventListener('icegatheringstatechange', (event) => {
-        console.log(connid + " onicegatheringstatechange", event);
-      });
-
-      connection.addEventListener('iceconnectionstatechange', () => {
-        console.log(
-          connid + " peer ice connection state: ",
-          connection.iceConnectionState
-        );
-        if (connection.iceConnectionState === "failed") {
-          connection.restartIce();
-        }
-      });
-
-      if (politePeerState) {
-        (this._dataChannels[connid] as unknown as RTCDataChannel) = connection.createDataChannel(connid);
-        if (this._dataChannels[connid]) {
-          this._dataChannels[connid].addEventListener('open', () => {
-            console.log(connid + " data channel onopen");
-          });
-          this._dataChannels[connid].addEventListener('close', () => {
-            console.log(connid + " data channel onclose");
-          });
-          this._dataChannels[connid].addEventListener('message', (event) => {
-            console.log(connid + " data channel onmessage", event.data);
-            this._emitDataChannelMsgCallback(connid, event.data);
-          });
-          this._dataChannels[connid].addEventListener('error', (event) => {
-            console.log(connid + " data channel onerror", event);
-            this._emitError("Data Channel Error, please refresh the page");
-          });
-        }
-      }
-
-      //create data channel
-      connection.addEventListener('datachannel', (event) => {
-        console.log(connid + " ondatachannel", event);
-        if (event.channel.label.startsWith("file-")) {
-          let fileid = event.channel.label.replace("file-", "");
-
-          this._fileTransferingDataChennels[fileid] = event.channel;
-          (this._fileTransferingDataChennels[fileid] as unknown as RTCDataChannel)?.addEventListener('open', () => {
-            console.log(connid + " remote file data channel onopen");
-          });
-          (this._fileTransferingDataChennels[fileid] as unknown as RTCDataChannel)?.addEventListener('close', () => {
-            console.log(connid + " remote file data channel onclose");
-          });
-          (this._fileTransferingDataChennels[fileid] as unknown as RTCDataChannel)?.addEventListener('message', (event) => {
-            console.log(
-              connid + "remote file data channel onmessage ",
-              event.data
-            );
-            const dataSize = event.data instanceof ArrayBuffer ? event.data.byteLength :
-              (event.data instanceof Blob ? event.data.size :
-                (typeof event.data === 'string' ? event.data.length : 0));
-
-            this._fileStates[fileid] = {
-              ...this._fileStates[fileid],
-              receivedArrayBuffer: this._fileStates[
-                fileid
-              ].receivedArrayBuffer.concat([event.data]),
-              completedSize:
-                this._fileStates[fileid].completedSize + dataSize,
-              progress:
-                (this._fileStates[fileid].completedSize /
-                  this._fileStates[fileid].totalSize) *
-                100,
-              transferSpeed:
-                dataSize /
-                (Date.now() - this._fileStates[fileid].lastTimeStamp),
-              lastTimeStamp: Date.now(),
-            };
-            console.log(
-              this._fileStates[fileid].completedSize ==
-              this._fileStates[fileid].totalSize
-            );
-            if (
-              this._fileStates[fileid].completedSize ==
-              this._fileStates[fileid].totalSize
-            ) {
-              let contentArrayblob = new Blob(
-                this._fileStates[fileid].receivedArrayBuffer
-              );
-              let objectURL = URL.createObjectURL(contentArrayblob);
-              console.log(objectURL);
-              this._emitFileTransferCompleted(
-                this._fileStates[fileid],
-                objectURL
-              );
-              return;
-            }
-            this._emitFileStateChange(fileid);
-
-          });
-          (this._fileTransferingDataChennels[fileid] as unknown as RTCDataChannel)?.addEventListener('error', (event) => {
-            console.log(connid + "file data channel onerror", event);
-            this._emitError("Data Channel Error, please refresh the page");
-          });
-
-          this._dataChannels[connid] = event.channel;
+        if (politePeerState) {
+          (this._dataChannels[connid] as unknown as RTCDataChannel) = connection.createDataChannel(connid);
           if (this._dataChannels[connid]) {
             this._dataChannels[connid].addEventListener('open', () => {
               console.log(connid + " data channel onopen");
@@ -268,106 +189,210 @@ export class WebrtcBase {
               this._emitError("Data Channel Error, please refresh the page");
             });
           }
-          this._emitError("Data Channel Error, please refresh the page");
-        }
-      });
-
-      connection.addEventListener('negotiationneeded', async (event) => {
-        console.log(connid + " onnegotiationneeded", event);
-        await this._createOffer(connid);
-      });
-
-      connection.addEventListener('connectionstatechange', (event) => {
-        console.log(
-          connid + " onconnectionstatechange",
-          connection.connectionState
-        );
-        if (connection.connectionState === "connected") {
-          console.log(connid + " connected");
-        }
-        if (connection.connectionState === "disconnected") {
-          console.log(connid + " disconnected");
-        }
-      });
-
-      connection.addEventListener('track', (event) => {
-        console.log(connid + " ontrack", event);
-        if (!this._remoteVideoStreams[connid]) {
-          this._remoteVideoStreams[connid] = new MediaStream();
         }
 
-        if (!this._remoteAudioStreams[connid]) {
-          this._remoteAudioStreams[connid] = new MediaStream();
-        }
-        if (!this._remoteScreenShareStreams[connid]) {
-          this._remoteScreenShareStreams[connid] = new MediaStream();
-        }
+        //create data channel
+        connection.addEventListener('datachannel', (event) => {
+          console.log(connid + " ondatachannel", event);
+          if (event.channel.label.startsWith("file-")) {
+            let fileid = event.channel.label.replace("file-", "");
 
-        if (event.track && event.track.kind == "video") {
-          // if (
-          //   this._remoteScreenShareTrackIds[connid] &&
-          //   this._remoteScreenShareTrackIds[connid] == "CAMERA OFF"
-          // ) {
-          //   console.log("CAMERA OFF ", connid);
-          //   this._remoteScreenShareStreams[connid]
-          //     .getVideoTracks()
-          //     .forEach((t) =>
-          //       this._remoteScreenShareStreams[connid]?.removeTrack(t)
-          //     );
-          //   this._remoteScreenShareStreams[connid].addTrack(event.track);
-          // } else if (
-          //   this._remoteScreenShareTrackIds[connid] &&
-          //   this._remoteScreenShareTrackIds[connid]?.startsWith("CAMERA ON")
-          // ) {
-          //   let cameraTrackId = this._remoteScreenShareTrackIds[connid].replace(
-          //     "CAMERA ON-",
-          //     ""
-          //   );
-          //   console.log("CAMERA ON ", connid, cameraTrackId);
-
-          //   if (cameraTrackId != event.track.id) {
-          //     console.log("CAMERA ON ", connid);
-          //     this._remoteScreenShareStreams[connid]
-          //       .getVideoTracks()
-          //       .forEach((t) =>
-          //         this._remoteScreenShareStreams[connid]?.removeTrack(t)
-          //       );
-          //     this._remoteScreenShareStreams[connid].addTrack(event.track);
-          //   }
-          // } else
-          if (
-            this._remoteScreenShareTrackIds[connid] &&
-            event.track &&
-            this._remoteScreenShareTrackIds[connid] == event.track.id
-          ) {
-            let scrID = this._remoteScreenShareTrackIds[connid];
-            console.log(
-              "SCREEN SHARE ON ",
-              connid,
-              scrID,
-              event.track.id,
-              scrID == event.track.id
-            );
-
-            this._remoteScreenShareStreams[connid]
-              .getVideoTracks()
-              .forEach((t) =>
-                this._remoteScreenShareStreams[connid]?.removeTrack(t)
-              );
-            this._remoteScreenShareStreams[connid].addTrack(event.track);
-          } else {
-            console.log("Camera track", connid);
-            this._remoteVideoStreams[connid]
-              .getVideoTracks()
-              .forEach((t) => this._remoteVideoStreams[connid]?.removeTrack(t));
-            this._remoteVideoStreams[connid].addTrack(event.track);
-            event.track.addEventListener('ended', () => {
-              console.log("Track ended", connid, event.track?.kind);
-              if (this._remoteVideoStreams[connid]) {
-                this._remoteVideoStreams[connid].removeTrack(event.track!);
-              }
-              this._updatePeerState();
+            this._fileTransferingDataChennels[fileid] = event.channel;
+            (this._fileTransferingDataChennels[fileid] as unknown as RTCDataChannel)?.addEventListener('open', () => {
+              console.log(connid + " remote file data channel onopen");
             });
+            (this._fileTransferingDataChennels[fileid] as unknown as RTCDataChannel)?.addEventListener('close', () => {
+              console.log(connid + " remote file data channel onclose");
+            });
+            (this._fileTransferingDataChennels[fileid] as unknown as RTCDataChannel)?.addEventListener('message', (event) => {
+              console.log(
+                connid + "remote file data channel onmessage ",
+                event.data
+              );
+              const dataSize = event.data instanceof ArrayBuffer ? event.data.byteLength :
+                (event.data instanceof Blob ? event.data.size :
+                  (typeof event.data === 'string' ? event.data.length : 0));
+
+              this._fileStates[fileid] = {
+                ...this._fileStates[fileid],
+                receivedArrayBuffer: this._fileStates[
+                  fileid
+                ].receivedArrayBuffer.concat([event.data]),
+                completedSize:
+                  this._fileStates[fileid].completedSize + dataSize,
+                progress:
+                  (this._fileStates[fileid].completedSize /
+                    this._fileStates[fileid].totalSize) *
+                  100,
+                transferSpeed:
+                  dataSize /
+                  (Date.now() - this._fileStates[fileid].lastTimeStamp),
+                lastTimeStamp: Date.now(),
+              };
+              console.log(
+                this._fileStates[fileid].completedSize ==
+                this._fileStates[fileid].totalSize
+              );
+              if (
+                this._fileStates[fileid].completedSize ==
+                this._fileStates[fileid].totalSize
+              ) {
+                let contentArrayblob = new Blob(
+                  this._fileStates[fileid].receivedArrayBuffer
+                );
+                let objectURL = URL.createObjectURL(contentArrayblob);
+                console.log(objectURL);
+                this._emitFileTransferCompleted(
+                  this._fileStates[fileid],
+                  objectURL
+                );
+                return;
+              }
+              this._emitFileStateChange(fileid);
+
+            });
+            (this._fileTransferingDataChennels[fileid] as unknown as RTCDataChannel)?.addEventListener('error', (event) => {
+              console.log(connid + "file data channel onerror", event);
+              this._emitError("Data Channel Error, please refresh the page");
+            });
+
+            this._dataChannels[connid] = event.channel;
+            if (this._dataChannels[connid]) {
+              this._dataChannels[connid].addEventListener('open', () => {
+                console.log(connid + " data channel onopen");
+              });
+              this._dataChannels[connid].addEventListener('close', () => {
+                console.log(connid + " data channel onclose");
+              });
+              this._dataChannels[connid].addEventListener('message', (event) => {
+                console.log(connid + " data channel onmessage", event.data);
+                this._emitDataChannelMsgCallback(connid, event.data);
+              });
+              this._dataChannels[connid].addEventListener('error', (event) => {
+                console.log(connid + " data channel onerror", event);
+                this._emitError("Data Channel Error, please refresh the page");
+              });
+            }
+            this._emitError("Data Channel Error, please refresh the page");
+          }
+        });
+
+        connection.addEventListener('negotiationneeded', async (event) => {
+          console.log(connid + " onnegotiationneeded", event);
+          await this._createOffer(connid);
+        });
+
+        connection.addEventListener('connectionstatechange', (event) => {
+          console.log(
+            connid + " onconnectionstatechange",
+            connection.connectionState
+          );
+          if (connection.connectionState === "connected") {
+            console.log(connid + " connected");
+          }
+          if (connection.connectionState === "disconnected") {
+            console.log(connid + " disconnected");
+          }
+        });
+
+        connection.addEventListener('track', (event) => {
+          console.log(connid + " ontrack", event);
+          if (!this._remoteVideoStreams[connid]) {
+            this._remoteVideoStreams[connid] = new MediaStream();
+          }
+
+          if (!this._remoteAudioStreams[connid]) {
+            this._remoteAudioStreams[connid] = new MediaStream();
+          }
+          if (!this._remoteScreenShareStreams[connid]) {
+            this._remoteScreenShareStreams[connid] = new MediaStream();
+          }
+
+          if (event.track && event.track.kind == "video") {
+            // if (
+            //   this._remoteScreenShareTrackIds[connid] &&
+            //   this._remoteScreenShareTrackIds[connid] == "CAMERA OFF"
+            // ) {
+            //   console.log("CAMERA OFF ", connid);
+            //   this._remoteScreenShareStreams[connid]
+            //     .getVideoTracks()
+            //     .forEach((t) =>
+            //       this._remoteScreenShareStreams[connid]?.removeTrack(t)
+            //     );
+            //   this._remoteScreenShareStreams[connid].addTrack(event.track);
+            // } else if (
+            //   this._remoteScreenShareTrackIds[connid] &&
+            //   this._remoteScreenShareTrackIds[connid]?.startsWith("CAMERA ON")
+            // ) {
+            //   let cameraTrackId = this._remoteScreenShareTrackIds[connid].replace(
+            //     "CAMERA ON-",
+            //     ""
+            //   );
+            //   console.log("CAMERA ON ", connid, cameraTrackId);
+
+            //   if (cameraTrackId != event.track.id) {
+            //     console.log("CAMERA ON ", connid);
+            //     this._remoteScreenShareStreams[connid]
+            //       .getVideoTracks()
+            //       .forEach((t) =>
+            //         this._remoteScreenShareStreams[connid]?.removeTrack(t)
+            //       );
+            //     this._remoteScreenShareStreams[connid].addTrack(event.track);
+            //   }
+            // } else
+            if (
+              this._remoteScreenShareTrackIds[connid] &&
+              event.track &&
+              this._remoteScreenShareTrackIds[connid] == event.track.id
+            ) {
+              let scrID = this._remoteScreenShareTrackIds[connid];
+              console.log(
+                "SCREEN SHARE ON ",
+                connid,
+                scrID,
+                event.track.id,
+                scrID == event.track.id
+              );
+
+              this._remoteScreenShareStreams[connid]
+                .getVideoTracks()
+                .forEach((t) =>
+                  this._remoteScreenShareStreams[connid]?.removeTrack(t)
+                );
+              this._remoteScreenShareStreams[connid].addTrack(event.track);
+            } else {
+              console.log("Camera track", connid);
+              this._remoteVideoStreams[connid]
+                .getVideoTracks()
+                .forEach((t) => this._remoteVideoStreams[connid]?.removeTrack(t));
+              this._remoteVideoStreams[connid].addTrack(event.track);
+              event.track.addEventListener('ended', () => {
+                console.log("Track ended", connid, event.track?.kind);
+                if (this._remoteVideoStreams[connid]) {
+                  this._remoteVideoStreams[connid].removeTrack(event.track!);
+                }
+                this._updatePeerState();
+              });
+              event.track.addEventListener('unmute', () => {
+                console.log("update state: onunmute", connid);
+                this._updatePeerState();
+              });
+              event.track.addEventListener('mute', () => {
+                console.log("update state: onmute", connid);
+                this._updatePeerState();
+              });
+              // this._remoteVideoStreams[connid].getTracks().forEach(t => console.log(t));
+            }
+            console.log("update state: by video track");
+            this._updatePeerState();
+          }
+          if (event.track && event.track.kind == "audio") {
+            this._remoteAudioStreams[connid]
+              .getAudioTracks()
+              .forEach((t) => this._remoteAudioStreams[connid]?.removeTrack(t));
+            this._remoteAudioStreams[connid].addTrack(event.track);
+            // this._remoteAudioStreams[connid].getTracks().forEach(t => console.log(t));
+            console.log("update state: by audio track");
             event.track.addEventListener('unmute', () => {
               console.log("update state: onunmute", connid);
               this._updatePeerState();
@@ -376,146 +401,246 @@ export class WebrtcBase {
               console.log("update state: onmute", connid);
               this._updatePeerState();
             });
-            // this._remoteVideoStreams[connid].getTracks().forEach(t => console.log(t));
+            this._updatePeerState();
           }
+        });
+
+        this._peerConnections[connid] = connection;
+
+        if (this._videoTrack) {
+          this._AlterAudioVideoSenders(this._videoTrack, this._rtpVideoSenders);
+        }
+
+      }
+
+      if (!this._peerConnectionsForScreenShare[connid]) {
+
+        let connectionForScreenShare = new RTCPeerConnection(
+          this._iceConfiguration
+        );
+        console.log("creating connectionForScreenShare", connid);
+        connectionForScreenShare.addEventListener('icecandidate', (event) => {
+          if (event.candidate) {
+            this._serverFn(
+              JSON.stringify({
+                iceCandidate: event.candidate,
+                forScreenShare: true,
+              }),
+              connid
+            );
+          }
+        });
+
+        connectionForScreenShare.addEventListener('icecandidateerror', (event) => {
+          console.log(
+            connid + " onicecandidateerror connectionForScreenShare",
+            event
+          );
+          // this._emitError("Failed to Gather ICE Candidate");
+        });
+
+        connectionForScreenShare.addEventListener('icegatheringstatechange', (event) => {
+          console.log(
+            connid + " onicegatheringstatechange connectionForScreenShare",
+            event
+          );
+        });
+
+        connectionForScreenShare.addEventListener('iceconnectionstatechange', () => {
+          console.log(
+            connid + " connectionForScreenShare peer ice connection state: ",
+            connectionForScreenShare.iceConnectionState
+          );
+          if (connectionForScreenShare.iceConnectionState === "failed") {
+            connectionForScreenShare.restartIce();
+          }
+        });
+
+        connectionForScreenShare.addEventListener('negotiationneeded', async (event) => {
+          console.log(connid + " onnegotiationneeded", event);
+          await this._createOffer(connid, true);
+        });
+
+        connectionForScreenShare.addEventListener('connectionstatechange', (event: any) => {
+          console.log(
+            connid + " connectionForScreenShare onconnectionstatechange",
+            event?.currentTarget?.connectionState
+          );
+          if (event.currentTarget.connectionState === "connected") {
+            console.log(connid + " connectionForScreenShare connected");
+          }
+          if (event.currentTarget.connectionState === "disconnected") {
+            console.log(connid + " connectionForScreenShare disconnected");
+          }
+        });
+
+        connectionForScreenShare.addEventListener('track', (event) => {
+          console.log(connid + " connectionForScreenShare ontrack", event);
+
+          if (!this._remoteScreenShareStreams[connid]) {
+            this._remoteScreenShareStreams[connid] = new MediaStream();
+          }
+          this._remoteScreenShareStreams[connid]
+            .getVideoTracks()
+            .forEach((t) =>
+              this._remoteScreenShareStreams[connid]?.removeTrack(t)
+            );
+          if (event.track) {
+            this._remoteScreenShareStreams[connid].addTrack(event.track);
+          }
+
+
+
+          // this._remoteVideoStreams[connid].getTracks().forEach(t => console.log(t));
+
           console.log("update state: by video track");
           this._updatePeerState();
-        }
-        if (event.track && event.track.kind == "audio") {
-          this._remoteAudioStreams[connid]
-            .getAudioTracks()
-            .forEach((t) => this._remoteAudioStreams[connid]?.removeTrack(t));
-          this._remoteAudioStreams[connid].addTrack(event.track);
-          // this._remoteAudioStreams[connid].getTracks().forEach(t => console.log(t));
-          console.log("update state: by audio track");
-          event.track.addEventListener('unmute', () => {
-            console.log("update state: onunmute", connid);
-            this._updatePeerState();
-          });
-          event.track.addEventListener('mute', () => {
-            console.log("update state: onmute", connid);
-            this._updatePeerState();
-          });
-          this._updatePeerState();
-        }
-      });
+        });
 
-      let connectionForScreenShare = new RTCPeerConnection(
-        this._iceConfiguration
-      );
-      console.log("creating connectionForScreenShare", connid);
-      connectionForScreenShare.addEventListener('icecandidate', (event) => {
-        if (event.candidate) {
-          this._serverFn(
-            JSON.stringify({
-              iceCandidate: event.candidate,
-              forScreenShare: true,
-            }),
-            connid
+        this._peerConnectionsForScreenShare[connid] = connectionForScreenShare;
+        if (this._screenShareTrack) {
+          // this._serverFn(
+          //   JSON.stringify({ screenShareTrackId: this._screenShareTrack.id }),
+          //   connid
+          // );
+          this._AlterAudioVideoSenders(
+            this._screenShareTrack,
+            this._rtpScreenShareSenders,
+            true
           );
         }
-      });
 
-      connectionForScreenShare.addEventListener('icecandidateerror', (event) => {
-        console.log(
-          connid + " onicecandidateerror connectionForScreenShare",
-          event
+
+      }
+
+      if (!this._peerConnectionsForAudio[connid]) {
+
+        // Create audio connection
+        let connectionForAudio = new RTCPeerConnection(
+          this._iceConfiguration
         );
-        // this._emitError("Failed to Gather ICE Candidate");
-      });
+        console.log("creating connectionForAudio", connid);
 
-      connectionForScreenShare.addEventListener('icegatheringstatechange', (event) => {
-        console.log(
-          connid + " onicegatheringstatechange connectionForScreenShare",
-          event
-        );
-      });
+        connectionForAudio.addEventListener('icecandidate', (event) => {
+          if (event.candidate) {
+            this._serverFn(
+              JSON.stringify({
+                iceCandidate: event.candidate,
+                forAudio: true,
+              }),
+              connid
+            );
+          }
+        });
 
-      connectionForScreenShare.addEventListener('iceconnectionstatechange', () => {
-        console.log(
-          connid + " connectionForScreenShare peer ice connection state: ",
-          connectionForScreenShare.iceConnectionState
-        );
-        if (connectionForScreenShare.iceConnectionState === "failed") {
-          connectionForScreenShare.restartIce();
-        }
-      });
+        connectionForAudio.addEventListener('icecandidateerror', (event) => {
+          console.log(connid + " onicecandidateerror connectionForAudio", event);
+        });
 
-      connectionForScreenShare.addEventListener('negotiationneeded', async (event) => {
-        console.log(connid + " onnegotiationneeded", event);
-        await this._createOffer(connid, true);
-      });
+        connectionForAudio.addEventListener('icegatheringstatechange', (event) => {
+          console.log(connid + " onicegatheringstatechange connectionForAudio", event);
+        });
 
-      connectionForScreenShare.addEventListener('connectionstatechange', (event: any) => {
-        console.log(
-          connid + " connectionForScreenShare onconnectionstatechange",
-          event?.currentTarget?.connectionState
-        );
-        if (event.currentTarget.connectionState === "connected") {
-          console.log(connid + " connectionForScreenShare connected");
-        }
-        if (event.currentTarget.connectionState === "disconnected") {
-          console.log(connid + " connectionForScreenShare disconnected");
-        }
-      });
-
-      connectionForScreenShare.addEventListener('track', (event) => {
-        console.log(connid + " connectionForScreenShare ontrack", event);
-
-        if (!this._remoteScreenShareStreams[connid]) {
-          this._remoteScreenShareStreams[connid] = new MediaStream();
-        }
-        this._remoteScreenShareStreams[connid]
-          .getVideoTracks()
-          .forEach((t) =>
-            this._remoteScreenShareStreams[connid]?.removeTrack(t)
+        connectionForAudio.addEventListener('iceconnectionstatechange', () => {
+          console.log(
+            connid + " connectionForAudio peer ice connection state: ",
+            connectionForAudio.iceConnectionState
           );
-        if (event.track) {
-          this._remoteScreenShareStreams[connid].addTrack(event.track);
+          if (connectionForAudio.iceConnectionState === "failed") {
+            connectionForAudio.restartIce();
+          }
+        });
+
+        connectionForAudio.addEventListener('negotiationneeded', async (event) => {
+          console.log(connid + " onnegotiationneeded for audio", event);
+          await this._createOffer(connid, false, true);
+        });
+
+        connectionForAudio.addEventListener('connectionstatechange', (event) => {
+          console.log(
+            connid + " connectionForAudio onconnectionstatechange",
+            connectionForAudio.connectionState
+          );
+          if (connectionForAudio.connectionState === "connected") {
+            console.log(connid + " connectionForAudio connected");
+          }
+          if (connectionForAudio.connectionState === "disconnected") {
+            console.log(connid + " connectionForAudio disconnected");
+          }
+        });
+
+        connectionForAudio.addEventListener('track', (event) => {
+          console.log(connid + " connectionForAudio ontrack", event);
+
+          if (!this._remoteAudioStreams[connid]) {
+            this._remoteAudioStreams[connid] = new MediaStream();
+          }
+
+          if (event.track && event.track.kind == "audio") {
+            this._remoteAudioStreams[connid]
+              .getAudioTracks()
+              .forEach((t) => this._remoteAudioStreams[connid]?.removeTrack(t));
+            this._remoteAudioStreams[connid].addTrack(event.track);
+
+            event.track.addEventListener('unmute', () => {
+              console.log("update state: onunmute audio", connid);
+              this._updatePeerState();
+            });
+            event.track.addEventListener('mute', () => {
+              console.log("update state: onmute audio", connid);
+              this._updatePeerState();
+            });
+            this._updatePeerState();
+          }
+        });
+
+        this._peerConnectionsForAudio[connid] = connectionForAudio;
+
+        if (this._audioTrack) {
+          this._AlterAudioVideoSenders(this._audioTrack, this._rtpAudioSenders, false, true);
         }
 
 
-
-        // this._remoteVideoStreams[connid].getTracks().forEach(t => console.log(t));
-
-        console.log("update state: by video track");
-        this._updatePeerState();
-      });
-
+      }
       this._peers_ids[connid] = connid;
-      this._peerConnections[connid] = connection;
-      this._peerConnectionsForScreenShare[connid] = connectionForScreenShare;
       this._politePeerStates[connid] = politePeerState;
 
       if (extraInfo) {
         this._peersInfo[connid] = extraInfo;
       }
 
-      if (this._videoTrack) {
-        this._AlterAudioVideoSenders(this._videoTrack, this._rtpVideoSenders);
-      }
-      if (this._screenShareTrack) {
-        // this._serverFn(
-        //   JSON.stringify({ screenShareTrackId: this._screenShareTrack.id }),
-        //   connid
-        // );
-        this._AlterAudioVideoSenders(
-          this._screenShareTrack,
-          this._rtpScreenShareSenders,
-          true
-        );
-      }
-      if (this._audioTrack) {
-        this._AlterAudioVideoSenders(this._audioTrack, this._rtpAudioSenders);
-      }
+
+
 
       console.log("createPeerConnection: update state", connid);
       this._updatePeerState();
     }
   }
 
-  async _createOffer(connid: string, forScreenShare = false) {
+  async _createOffer(connid: string, forScreenShare = false, forAudio = false) {
     try {
+      if (forAudio) {
+        let connectionForAudio =
+          this._peerConnectionsForAudio[connid];
+        if (connectionForAudio != null) {
+          this._offferMakingStatePeersForAudio[connid] = true;
+          console.log(
+            connid +
+            " forAudio creating offer: connenction.signalingState:" +
+            connectionForAudio?.signalingState
+          );
+          let offer = await connectionForAudio?.createOffer({});
+          await connectionForAudio?.setLocalDescription(offer);
+          this._serverFn(
+            JSON.stringify({
+              offer: connectionForAudio?.localDescription,
+              forAudio: true,
+            }),
+            connid
+          );
+        }
+        return;
+      }
       if (forScreenShare) {
         let connectionForScreenShare =
           this._peerConnectionsForScreenShare[connid];
@@ -562,7 +687,9 @@ export class WebrtcBase {
       console.log(err);
       this._emitError("Internal Webrtc Error , please refresh the page");
     } finally {
-      if (forScreenShare) {
+      if (forAudio) {
+        this._offferMakingStatePeersForAudio[connid] = false;
+      } else if (forScreenShare) {
         this._offferMakingStatePeersForScreenShare[connid] = false;
       } else {
         this._offferMakingStatePeers[connid] = false;
@@ -611,7 +738,11 @@ export class WebrtcBase {
         await this.createConnection(from_connid, false, extraInfo);
       }
       try {
-        if (msg.forScreenShare) {
+        if (msg.forAudio) {
+          await this._peerConnectionsForAudio[
+            from_connid
+          ]?.addIceCandidate(msg.iceCandidate);
+        } else if (msg.forScreenShare) {
           await this._peerConnectionsForScreenShare[
             from_connid
           ]?.addIceCandidate(msg.iceCandidate);
@@ -635,6 +766,42 @@ export class WebrtcBase {
         if (msg.screenid)
           this._remoteScreenShareTrackIds[from_connid] = msg.screenid;
         if (this._peerConnections[from_connid]) {
+          if (
+            msg.forAudio &&
+            this._peerConnectionsForAudio[from_connid]
+          ) {
+            const offerCollision =
+              this._offferMakingStatePeersForAudio[from_connid] ||
+              this._peerConnectionsForAudio[from_connid]
+                ?.signalingState !== "stable";
+            if (offerCollision && !this._politePeerStates[from_connid]) {
+              console.log("ignoring Offer", from_connid);
+              return;
+            }
+
+            await this._peerConnectionsForAudio[
+              from_connid
+            ].setRemoteDescription(new RTCSessionDescription(msg.offer));
+            let answer =
+              await this._peerConnectionsForAudio[
+                from_connid
+              ].createAnswer();
+            await this._peerConnectionsForAudio[
+              from_connid
+            ].setLocalDescription();
+            this._serverFn(
+              JSON.stringify({
+                answer:
+                  this._peerConnectionsForAudio[from_connid]
+                    .localDescription,
+                forAudio: true,
+              }),
+              from_connid
+            );
+
+            return;
+          }
+
           if (
             msg.forScreenShare &&
             this._peerConnectionsForScreenShare[from_connid]
@@ -706,6 +873,15 @@ export class WebrtcBase {
 
           console.log(from_connid, " answer", msg.answer);
           if (
+            msg.forAudio &&
+            this._peerConnectionsForAudio[from_connid]
+          ) {
+            await this._peerConnectionsForAudio[
+              from_connid
+            ].setRemoteDescription(new RTCSessionDescription(msg.answer));
+            return;
+          }
+          if (
             msg.forScreenShare &&
             this._peerConnectionsForScreenShare[from_connid]
           ) {
@@ -766,6 +942,10 @@ export class WebrtcBase {
     if (this._peerConnectionsForScreenShare[connid]) {
       this._peerConnectionsForScreenShare[connid].close();
       this._peerConnectionsForScreenShare[connid] = null;
+    }
+    if (this._peerConnectionsForAudio[connid]) {
+      this._peerConnectionsForAudio[connid].close();
+      this._peerConnectionsForAudio[connid] = null;
     }
     if (this._remoteAudioStreams[connid]) {
       this._remoteAudioStreams[connid]
@@ -1153,8 +1333,25 @@ export class WebrtcBase {
   _AlterAudioVideoSenders(
     track: MediaStreamTrack,
     rtpSenders: any,
-    forScreenShare: boolean = false
+    forScreenShare: boolean = false,
+    forAudio: boolean = false
   ) {
+    if (forAudio) {
+      for (let conId in this._peers_ids) {
+        if (
+          this._peerConnectionsForAudio[conId] &&
+          this._isConnectionAlive(this._peerConnectionsForAudio[conId])
+        ) {
+          if (rtpSenders[conId] && rtpSenders[conId].track) {
+            rtpSenders[conId].replaceTrack(track);
+          } else {
+            rtpSenders[conId] = this._peerConnectionsForAudio[conId].addTrack(track);
+          }
+        }
+      }
+      return;
+    }
+
     if (forScreenShare) {
       for (let conId in this._peers_ids) {
         if (
@@ -1185,8 +1382,21 @@ export class WebrtcBase {
     }
   }
 
-  _RemoveAudioVideoSenders(rtpSenders: any, forScreenShare: boolean = false) {
+  _RemoveAudioVideoSenders(rtpSenders: any, forScreenShare: boolean = false, forAudio: boolean = false) {
     for (let conId in this._peers_ids) {
+      if (forAudio) {
+        if (
+          this._peerConnectionsForAudio[conId] &&
+          this._isConnectionAlive(this._peerConnectionsForAudio[conId])
+        ) {
+          if (rtpSenders[conId] && rtpSenders[conId].track) {
+            this._peerConnectionsForAudio[conId].removeTrack(rtpSenders[conId]);
+            rtpSenders[conId] = null;
+          }
+        }
+        return;
+      }
+
       if (forScreenShare) {
         if (
           this._peerConnectionsForScreenShare[conId] &&
@@ -1228,6 +1438,15 @@ export class WebrtcBase {
       this._screenShareTrack.stop();
       this._screenShareTrack = null;
       this._RemoveAudioVideoSenders(_rtpScreenSenders, true);
+    }
+  }
+
+  _ClearAudioStreams(_rtpAudioSenders: any) {
+    if (this._audioTrack) {
+      this._audioTrack.enabled = false;
+      this._audioTrack.stop();
+      this._audioTrack = null;
+      this._RemoveAudioVideoSenders(_rtpAudioSenders, false, true);
     }
   }
 
@@ -1444,7 +1663,7 @@ export class WebrtcBase {
       if (this._isAudioMuted) {
         this._audioTrack.enabled = true;
         this._isAudioMuted = false;
-        this._AlterAudioVideoSenders(this._audioTrack, this._rtpAudioSenders);
+        this._AlterAudioVideoSenders(this._audioTrack, this._rtpAudioSenders, false, true);
         this._emitAudioState(true);
       }
     } catch (e) {
@@ -1459,10 +1678,11 @@ export class WebrtcBase {
     if (this._audioTrack) {
       this._audioTrack.enabled = false;
       this._isAudioMuted = true;
-      this._RemoveAudioVideoSenders(this._rtpAudioSenders);
+      this._RemoveAudioVideoSenders(this._rtpAudioSenders, false, true);
       this._emitAudioState(false);
     }
   }
+
   async toggleAudio() {
     if (this._isAudioMuted) await this.startAudio();
     else await this.stopAudio();
