@@ -1,16 +1,25 @@
-import React, { useEffect } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, ActivityIndicator, Platform } from 'react-native';
-
-import { useEasyMeet } from '../lib/useEasyMeet';
+import React, { useEffect, useRef, useState } from 'react';
+import { StyleSheet, View, Text, TouchableOpacity, ActivityIndicator, Platform, ScrollView } from 'react-native';
+import { useEasyMeet } from '@/lib/useEasyMeet';
 import { Ionicons } from '@expo/vector-icons';
 import { requestMultiple, PERMISSIONS } from 'react-native-permissions';
 import RTXView from '@/lib/RTXView';
+import Ably from "ably";
+
+function getRandomInt(max: number) {
+  return Math.floor(Math.random() * max);
+}
 
 interface CameraViewerProps {
   userId?: string;
 }
 
 export const CameraViewer: React.FC<CameraViewerProps> = ({ userId = 'user1' }) => {
+  // Initialize Ably client
+  const ably = useRef<Ably.Realtime | null>(null);
+  const channelRef = useRef<Ably.RealtimeChannel | null>(null);
+  const isInit = useRef<boolean>(false);
+
   const {
     isVideoOn,
     videoStream,
@@ -19,13 +28,17 @@ export const CameraViewer: React.FC<CameraViewerProps> = ({ userId = 'user1' }) 
     startCamera,
     toggleCamera,
     switchCamera,
+    toggleAudio,
+    isAudioOn,
+    joinExistingPeer,
+    joinNewPeer,
+    leavePeer,
+    onSocketMessage,
+    peers,
     error,
-  } = useEasyMeet(
-    userId,
-    [{ urls: 'stun:stun.l.google.com:19302' }],
-    (msg:any) => console.log(msg)
-    
-  );
+    initSys
+  } = useEasyMeet();
+
 
   // Request permissions when component mounts
   useEffect(() => {
@@ -42,16 +55,102 @@ export const CameraViewer: React.FC<CameraViewerProps> = ({ userId = 'user1' }) 
         ]);
       }
     };
-    
+
     requestPermissions();
   }, []);
 
-  // Auto-start camera when system is ready
-//   useEffect(() => {
-//     if (isSystemReady && !isVideoOn) {
-//       startCamera();
-//     }
-//   }, [isSystemReady, isVideoOn, startCamera]);
+  // Set up video call connections
+  useEffect(() => {
+    if (!isInit.current) {
+      const init = async () => {
+        let IceServers: any = null;
+        try {
+          const response = await fetch("https://virsys.metered.live/api/v1/turn/credentials?apiKey=9fb58d67a3a41d96bbc3f2450196d0e7125d");
+          const servers = await response.json();
+          IceServers = servers;
+          console.log("1.ICE ", IceServers);
+
+          // Initialize Ably
+          if (!ably.current) {
+            ably.current = new Ably.Realtime({ key: 'YSXfdw.ksCpsA:Bf6jKYu4LPPpMfiFkSMJrZ4q4ArLDkuBf7bJCPxKQUo', clientId: Math.random().toString(36).substring(7) })
+            ably.current.connection.once('connected').then(() => {
+              console.log('2. Connected to Ably!');
+              // Create a channel if it doesn't exist
+              if (!channelRef.current) {
+                channelRef.current = ably.current!.channels.get("xvc_xdc");
+                async function sendmsg(msg: any, to: any) {
+                  console.log("sendmsg", msg, to);
+                  try {
+                    await channelRef.current?.publish('greeting', { data: msg, clientId: ably.current?.auth.clientId, to: to });
+                    console.log('message sent: ', msg);
+                  }
+                  catch (err) {
+                    console.log(err)
+                    alert("something went wrong pls , try again or refresh")
+                  }
+                }
+                initSys(
+                  ably.current!.auth.clientId,
+                  IceServers,
+                  sendmsg
+                )
+                // Enter presence
+                channelRef.current?.presence.enter({ name: getRandomInt(1000000).toString() });
+
+                // Subscribe to messages
+                channelRef.current?.subscribe('greeting', async (message) => {
+                  if (message.clientId === ably.current?.auth.clientId) {
+                    return; // Ignore own messages
+                  }
+
+                  if (message.data.to === ably.current?.auth.clientId) {
+                    console.log('Message received from:', message.clientId);
+                    await onSocketMessage(message.data.data, message.clientId!, null);
+                  }
+                });
+
+                // Listen for users entering
+                channelRef.current?.presence.subscribe('enter', async (member) => {
+                  if (member.clientId === ably.current?.auth.clientId) {
+                    return;
+                  }
+                  console.log("New user connected:", member);
+                  joinNewPeer(member.clientId, { name: member.data.name });
+                });
+
+                // Listen for users leaving
+                channelRef.current?.presence.subscribe('leave', async (member) => {
+                  if (member.clientId === ably.current?.auth.clientId) {
+                    return;
+                  }
+                  console.log("User left:", member);
+                  leavePeer(member.clientId);
+                });
+
+                // Get existing users
+                channelRef.current?.presence.get().then((otherUsers: any) => {
+                  console.log("Existing users:", otherUsers);
+                  if (otherUsers) {
+                    for (let i = 0; i < otherUsers.length; i++) {
+                      if (otherUsers[i].clientId !== ably.current?.auth.clientId) {
+                        joinExistingPeer(otherUsers[i].clientId, { name: otherUsers[i].data.name });
+                      }
+                    }
+                  }
+                });
+
+
+                isInit.current = true;
+              }
+            });
+          }
+        } catch (error) {
+          console.error("Failed to fetch ICE servers:", error);
+        }
+      }
+      init();
+    }
+  }, [isSystemReady, channelRef, ably, joinExistingPeer, joinNewPeer, leavePeer, onSocketMessage]);
 
   if (error) {
     return (
@@ -68,7 +167,7 @@ export const CameraViewer: React.FC<CameraViewerProps> = ({ userId = 'user1' }) 
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#0000ff" />
-        <Text style={styles.loadingText}>Initializing camera...</Text>
+        <Text style={styles.loadingText}>Initializing system...</Text>
       </View>
     );
   }
@@ -78,21 +177,40 @@ export const CameraViewer: React.FC<CameraViewerProps> = ({ userId = 'user1' }) 
       {isVideoOn && videoStream ? (
         <RTXView
           stream={videoStream}
-         
-          style={styles.videoStream}
+          style={styles.localVideoStream}
         />
-     
       ) : (
         <View style={styles.noVideoContainer}>
           <Ionicons name="videocam-off" size={64} color="#888" />
           <Text style={styles.noVideoText}>Camera is off</Text>
         </View>
-      )} 
+      )}
+
+      {/* Remote peer videos */}
+      {peers.length > 0 && (
+        <ScrollView horizontal style={styles.remoteVideosContainer}>
+          {peers.map((peer) => (
+            <View key={peer.socketId} style={styles.remotePeerContainer}>
+              {peer.videoStream ? (
+                <RTXView
+                  stream={peer.videoStream}
+                  style={styles.remoteVideoStream}
+                />
+              ) : (
+                <View style={styles.remotePeerPlaceholder}>
+                  <Ionicons name="person" size={32} color="#888" />
+                </View>
+              )}
+              <Text style={styles.peerName}>{peer.socketId}</Text>
+            </View>
+          ))}
+        </ScrollView>
+      )}
 
       <View style={styles.controls}>
         <TouchableOpacity
           style={[styles.controlButton, isVideoOn ? styles.activeButton : {}]}
-          onPress={() => toggleCamera()}        
+          onPress={() => toggleCamera()}
         >
           <Ionicons
             name={isVideoOn ? "videocam" : "videocam-off"}
@@ -101,6 +219,20 @@ export const CameraViewer: React.FC<CameraViewerProps> = ({ userId = 'user1' }) 
           />
           <Text style={styles.buttonText}>
             {isVideoOn ? 'Stop Cam' : 'Start Camera'}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.controlButton, isAudioOn ? styles.activeButton : {}]}
+          onPress={toggleAudio}
+        >
+          <Ionicons
+            name={isAudioOn ? "mic" : "mic-off"}
+            size={28}
+            color="white"
+          />
+          <Text style={styles.buttonText}>
+            {isAudioOn ? 'Mute' : 'Unmute'}
           </Text>
         </TouchableOpacity>
 
@@ -123,11 +255,42 @@ const styles = StyleSheet.create({
     backgroundColor: '#000',
     position: 'relative',
   },
-  videoStream: {
-    flex: 1,
+  localVideoStream: {
     width: '100%',
-    height: '100%',
+    height: '70%',
   },
+  remoteVideosContainer: {
+    position: 'absolute',
+    top: 10,
+    right: 10,
+    height: 150,
+  },
+  remotePeerContainer: {
+    width: 120,
+    height: 150,
+    marginHorizontal: 5,
+    backgroundColor: '#333',
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  remoteVideoStream: {
+    width: 120,
+    height: 120,
+  },
+  remotePeerPlaceholder: {
+    width: 120,
+    height: 120,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#444',
+  },
+  peerName: {
+    color: 'white',
+    fontSize: 12,
+    textAlign: 'center',
+    padding: 2,
+  },
+  // ...existing code...
   controls: {
     flexDirection: 'row',
     justifyContent: 'space-around',
@@ -202,3 +365,5 @@ const styles = StyleSheet.create({
     borderRadius: 5,
   },
 });
+
+/*i open this app using two android device. when for the first time i start camera (start camra button calls toggleCamera()) on one device vedio is shown to another device . means video is sending and signaling and all things working. BUT when i stop camera (button calls toggle) , the other device shows my vedio is frized and then when i again open the camera, the other device still shows that freeze picture. it also happen whene i switch camera , the other device's video freeze at previous camera. Explain why this is happening and how can i solve this*/

@@ -42,6 +42,7 @@ import {
     peers: peerState[];
     sendDataChannelMsg: (msg: string, toID: string) => void;
     sendFile: (to: string, file: File) => void;
+    initSys: (selfID: string, iceServers: any[], socketMsgFn: Function, onFileSendingReq?: (name: string, conId: string) => boolean) => void;
   }
   
   /**
@@ -82,10 +83,6 @@ import {
    * }
    */
   export const useEasyMeet = (
-    selfID: string,
-    iceServers: any[],
-    socketMsgFn: Function,
-    onFileSendingReq: (name: string, conId: string) => boolean = () => true
   ): easyMeetInterface => {
     const webRTCBaseRef = useRef<WebrtcBase | null>(null);
     const [isSystemReady, setIsSystemReady] = useState(false);
@@ -116,7 +113,12 @@ import {
     } | null>(null);
   
     //init webrtc system
-    useEffect(() => {
+    const initSys = useCallback((
+      selfID: string,
+      iceServers: any[],
+      socketMsgFn: Function,
+      onFileSendingReq: (name: string, conId: string) => boolean = () => true
+    ) => {
       if (!webRTCBaseRef.current) {
         webRTCBaseRef.current = new WebrtcBase(
           selfID,
@@ -164,7 +166,7 @@ import {
         setIsSystemReady(true);
         console.log("Webrtc System is ready");
       }
-    }, [iceServers, selfID, socketMsgFn, onFileSendingReq]);
+    },[]);
   
     // all functions and callbacks
     const joinExistingPeer = useCallback(
@@ -373,6 +375,7 @@ import {
     }, []);
   
     return {
+      initSys,
       peers,
       webRTCBaseRef,
       error,
