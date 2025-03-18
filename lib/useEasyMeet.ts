@@ -6,13 +6,34 @@ import {
     useState,
   } from "react";
   import { FileState, peerState, WebrtcBase } from "./webrtcBase";
-  import { MediaStream as NMediaStream, registerGlobals } from "react-native-webrtc";
-import { Platform } from "react-native";
+  import { MediaStream as NMediaStream, registerGlobals, RTCPeerConnection, mediaDevices } from "react-native-webrtc";
+import { Platform, NativeModules } from "react-native";
   
 if(Platform.OS !== "web"){  
 
   registerGlobals();
 }
+
+// Configure audio settings
+const configureAudio = async () => {
+  try {
+    // For Android
+    if (Platform.OS === 'android') {
+      const audioManager = NativeModules.AudioManager;
+      await audioManager.setMode('VoiceCall');
+      await audioManager.setSpeakerphoneOn(true);
+    } 
+    // For iOS
+    else if (Platform.OS === 'ios') {
+      const AudioSession = NativeModules.RTCAudioSession;
+      await AudioSession.setCategory('PlayAndRecord');
+      await AudioSession.setMode('VoiceChat');
+      await AudioSession.setActive(true);
+    }
+  } catch (err) {
+    console.error('Error configuring audio:', err);
+  }
+};
 
   export interface easyMeetInterface {
     webRTCBaseRef: MutableRefObject<WebrtcBase | null>;

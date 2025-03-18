@@ -4,15 +4,15 @@ import {
   RTCPeerConnection,
   RTCIceCandidate,
   RTCSessionDescription,
-  
+
   mediaDevices,
   registerGlobals,
 } from 'react-native-webrtc';
 
 import { Platform } from 'react-native';
-import 'react-native-get-random-values'; 
+import 'react-native-get-random-values';
 import RTCDataChannel from 'react-native-webrtc/lib/typescript/RTCDataChannel';
-if(Platform.OS !== "web") {
+if (Platform.OS !== "web") {
   registerGlobals();
 }
 
@@ -102,7 +102,7 @@ export class WebrtcBase {
   private _serverFn: Function;
   private _my_connid: string = "";
 
-  private _dataChannels: { [id: string]: RTCDataChannel  | null } = {};
+  private _dataChannels: { [id: string]: RTCDataChannel | null } = {};
 
   // callback functions array
 
@@ -123,7 +123,7 @@ export class WebrtcBase {
   ) {
     // Register WebRTC globals if needed
     // registerGlobals();
-    
+
     this._my_connid = my_connid;
     this._serverFn = serverFn;
     this._iceConfiguration = iceConfiguration;
@@ -167,7 +167,7 @@ export class WebrtcBase {
       });
 
       if (politePeerState) {
-       (this._dataChannels[connid] as unknown as RTCDataChannel) = connection.createDataChannel(connid);
+        (this._dataChannels[connid] as unknown as RTCDataChannel) = connection.createDataChannel(connid);
         if (this._dataChannels[connid]) {
           this._dataChannels[connid].addEventListener('open', () => {
             console.log(connid + " data channel onopen");
@@ -204,10 +204,10 @@ export class WebrtcBase {
               connid + "remote file data channel onmessage ",
               event.data
             );
-            const dataSize = event.data instanceof ArrayBuffer ? event.data.byteLength : 
-                            (event.data instanceof Blob ? event.data.size : 
-                            (typeof event.data === 'string' ? event.data.length : 0));
-            
+            const dataSize = event.data instanceof ArrayBuffer ? event.data.byteLength :
+              (event.data instanceof Blob ? event.data.size :
+                (typeof event.data === 'string' ? event.data.length : 0));
+
             this._fileStates[fileid] = {
               ...this._fileStates[fileid],
               receivedArrayBuffer: this._fileStates[
@@ -226,7 +226,7 @@ export class WebrtcBase {
             };
             console.log(
               this._fileStates[fileid].completedSize ==
-                this._fileStates[fileid].totalSize
+              this._fileStates[fileid].totalSize
             );
             if (
               this._fileStates[fileid].completedSize ==
@@ -251,23 +251,23 @@ export class WebrtcBase {
             this._emitError("Data Channel Error, please refresh the page");
           });
 
-        this._dataChannels[connid] = event.channel;
-        if (this._dataChannels[connid]) {
-          this._dataChannels[connid].addEventListener('open', () => {
-            console.log(connid + " data channel onopen");
-          });
-          this._dataChannels[connid].addEventListener('close', () => {
-            console.log(connid + " data channel onclose");
-          });
-          this._dataChannels[connid].addEventListener('message', (event) => {
-            console.log(connid + " data channel onmessage", event.data);
-            this._emitDataChannelMsgCallback(connid, event.data);
-          });
-          this._dataChannels[connid].addEventListener('error', (event) => {
-            console.log(connid + " data channel onerror", event);
-            this._emitError("Data Channel Error, please refresh the page");
-          });
-        }
+          this._dataChannels[connid] = event.channel;
+          if (this._dataChannels[connid]) {
+            this._dataChannels[connid].addEventListener('open', () => {
+              console.log(connid + " data channel onopen");
+            });
+            this._dataChannels[connid].addEventListener('close', () => {
+              console.log(connid + " data channel onclose");
+            });
+            this._dataChannels[connid].addEventListener('message', (event) => {
+              console.log(connid + " data channel onmessage", event.data);
+              this._emitDataChannelMsgCallback(connid, event.data);
+            });
+            this._dataChannels[connid].addEventListener('error', (event) => {
+              console.log(connid + " data channel onerror", event);
+              this._emitError("Data Channel Error, please refresh the page");
+            });
+          }
           this._emitError("Data Channel Error, please refresh the page");
         }
       });
@@ -361,6 +361,13 @@ export class WebrtcBase {
               .getVideoTracks()
               .forEach((t) => this._remoteVideoStreams[connid]?.removeTrack(t));
             this._remoteVideoStreams[connid].addTrack(event.track);
+            event.track.addEventListener('ended', () => {
+              console.log("Track ended", connid, event.track?.kind);
+              if (this._remoteVideoStreams[connid]) {
+                this._remoteVideoStreams[connid].removeTrack(event.track!);
+              }
+              this._updatePeerState();
+            });
             event.track.addEventListener('unmute', () => {
               console.log("update state: onunmute", connid);
               this._updatePeerState();
@@ -453,25 +460,27 @@ export class WebrtcBase {
       });
 
       connectionForScreenShare.addEventListener('track', (event) => {
-              console.log(connid + " connectionForScreenShare ontrack", event);
-      
-              if (!this._remoteScreenShareStreams[connid]) {
-                this._remoteScreenShareStreams[connid] = new MediaStream();
-              }
-              this._remoteScreenShareStreams[connid]
-                .getVideoTracks()
-                .forEach((t) =>
-                  this._remoteScreenShareStreams[connid]?.removeTrack(t)
-                );
-              if (event.track) {
-                this._remoteScreenShareStreams[connid].addTrack(event.track);
-              }
-      
-              // this._remoteVideoStreams[connid].getTracks().forEach(t => console.log(t));
-      
-              console.log("update state: by video track");
-              this._updatePeerState();
-            });
+        console.log(connid + " connectionForScreenShare ontrack", event);
+
+        if (!this._remoteScreenShareStreams[connid]) {
+          this._remoteScreenShareStreams[connid] = new MediaStream();
+        }
+        this._remoteScreenShareStreams[connid]
+          .getVideoTracks()
+          .forEach((t) =>
+            this._remoteScreenShareStreams[connid]?.removeTrack(t)
+          );
+        if (event.track) {
+          this._remoteScreenShareStreams[connid].addTrack(event.track);
+        }
+
+
+
+        // this._remoteVideoStreams[connid].getTracks().forEach(t => console.log(t));
+
+        console.log("update state: by video track");
+        this._updatePeerState();
+      });
 
       this._peers_ids[connid] = connid;
       this._peerConnections[connid] = connection;
@@ -514,8 +523,8 @@ export class WebrtcBase {
           this._offferMakingStatePeersForScreenShare[connid] = true;
           console.log(
             connid +
-              " forScreenShare creating offer: connenction.signalingState:" +
-              connectionForScreenShare?.signalingState
+            " forScreenShare creating offer: connenction.signalingState:" +
+            connectionForScreenShare?.signalingState
           );
           let offer = await connectionForScreenShare?.createOffer({});
           await connectionForScreenShare?.setLocalDescription(offer);
@@ -534,8 +543,8 @@ export class WebrtcBase {
         this._offferMakingStatePeers[connid] = true;
         console.log(
           connid +
-            " creating offer: connenction.signalingState:" +
-            connection?.signalingState
+          " creating offer: connenction.signalingState:" +
+          connection?.signalingState
         );
         let offer = await connection?.createOffer({});
         await connection?.setLocalDescription(offer);
@@ -568,12 +577,35 @@ export class WebrtcBase {
   ) {
     console.log(from_connid + " onSocketMessage", message);
     let msg = JSON.parse(message);
+
+    // Add these cases to handle camera state changes
+    if (msg.videoOff || msg.videoTrackEnded) {
+      console.log(from_connid, " videoOff/videoTrackEnded");
+
+      // Clear the remote video stream completely
+      if (this._remoteVideoStreams[from_connid]) {
+        // Get all tracks and explicitly stop them
+        const tracks = this._remoteVideoStreams[from_connid].getVideoTracks();
+        tracks.forEach(track => {
+          track.stop();
+          this._remoteVideoStreams[from_connid]?.removeTrack(track);
+        });
+
+        // Force an update to the UI
+        this._updatePeerState();
+      }
+      return;
+    }
+
+
+
+    // Rest of your existing code...
     if (msg.iceCandidate) {
       if (!this._peerConnections[from_connid]) {
         console.log(
           "peer " +
-            from_connid +
-            " not found , creating connection for ice candidate"
+          from_connid +
+          " not found , creating connection for ice candidate"
         );
 
         await this.createConnection(from_connid, false, extraInfo);
@@ -841,7 +873,7 @@ export class WebrtcBase {
             });
             (this._fileTransferingDataChennels[data.fileId] as unknown as RTCDataChannel)!.addEventListener('message', (e) => {
               console.log(conId + "file data channel onmessage " + data.fileId);
-              let msg = JSON.parse(typeof(e.data) === "string" ? e.data : e.data.toString());
+              let msg = JSON.parse(typeof (e.data) === "string" ? e.data : e.data.toString());
               // this._emitDataChannelMsgCallback(conId, msg);
             }); // though sender never get msg but sends msg
 
@@ -853,8 +885,8 @@ export class WebrtcBase {
         } else {
           this._emitError(
             "Failed to transfer file " +
-              data.fileName +
-              " because peer is not connected"
+            data.fileName +
+            " because peer is not connected"
           );
           return;
         }
@@ -892,7 +924,7 @@ export class WebrtcBase {
                 (Date.now() - this._fileStates[data.fileId].lastTimeStamp),
               lastTimeStamp: Date.now(),
             };
-            
+
             if (
               this._fileStates[data.fileId].completedSize <
               this._fileStates[data.fileId].totalSize
@@ -1200,7 +1232,7 @@ export class WebrtcBase {
   }
 
   async startCamera(
-    cameraConfig: { video: boolean | { width: number; height: number; facingMode?: string }} = {
+    cameraConfig: { video: boolean | { width: number; height: number; facingMode?: string } } = {
       video: {
         width: 640,
         height: 480,
@@ -1271,10 +1303,20 @@ export class WebrtcBase {
     this._ClearCameraVideoStreams(this._rtpVideoSenders);
     this._emitCameraVideoState(false);
     this._isVideoMuted = true;
+
+    // Send explicit signal to all peers that camera is off
+    for (let connid in this._peerConnections) {
+      this._serverFn(
+        JSON.stringify({
+          videoOff: true, // This signal tells remote peers to clear the video track
+        }),
+        connid
+      );
+    }
   }
 
   async toggleCamera(
-    cameraConfig: { video: boolean | { width: number; height: number; facingMode?: string }} = {
+    cameraConfig: { video: boolean | { width: number; height: number; facingMode?: string } } = {
       video: {
         width: 640,
         height: 480,
@@ -1325,7 +1367,7 @@ export class WebrtcBase {
 
       // Fallback generic approach - may not work on all platforms
       let videoStream = await mediaDevices.getDisplayMedia?.();
-      
+
       if (!videoStream) {
         this._emitError("Screen sharing not supported on this platform");
         return;
@@ -1392,7 +1434,7 @@ export class WebrtcBase {
     try {
       if (!this._audioTrack) {
         // Using react-native-webrtc's mediaDevices
-        let audioStream = await mediaDevices.getUserMedia({ 
+        let audioStream = await mediaDevices.getUserMedia({
           video: false,
           audio: true,
         });

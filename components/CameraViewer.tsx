@@ -1,9 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity, ActivityIndicator, Platform, ScrollView } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity, ActivityIndicator, Platform, ScrollView, NativeModules } from 'react-native';
 import { useEasyMeet } from '@/lib/useEasyMeet';
 import { Ionicons } from '@expo/vector-icons';
 import { requestMultiple, PERMISSIONS } from 'react-native-permissions';
 import RTXView from '@/lib/RTXView';
+import RTXAudio from '@/lib/RTXAudio';
+
 import Ably from "ably";
 
 function getRandomInt(max: number) {
@@ -48,6 +50,12 @@ export const CameraViewer: React.FC<CameraViewerProps> = ({ userId = 'user1' }) 
           PERMISSIONS.ANDROID.CAMERA,
           PERMISSIONS.ANDROID.RECORD_AUDIO
         ]);
+
+        if (Platform.OS === 'android') {
+          const audioManager = NativeModules.AudioManager;
+          await audioManager.setMode('VoiceCall');
+          await audioManager.setSpeakerphoneOn(true);
+        }
       } else if (Platform.OS === 'ios') {
         await requestMultiple([
           PERMISSIONS.IOS.CAMERA,
@@ -201,6 +209,11 @@ export const CameraViewer: React.FC<CameraViewerProps> = ({ userId = 'user1' }) 
                   <Ionicons name="person" size={32} color="#888" />
                 </View>
               )}
+              {peer.audioStream && (
+                <RTXAudio
+                  stream={peer.audioStream}
+                />
+              )}
               <Text style={styles.peerName}>{peer.socketId}</Text>
             </View>
           ))}
@@ -224,7 +237,7 @@ export const CameraViewer: React.FC<CameraViewerProps> = ({ userId = 'user1' }) 
 
         <TouchableOpacity
           style={[styles.controlButton, isAudioOn ? styles.activeButton : {}]}
-          onPress={toggleAudio}
+          onPress={() => toggleAudio()}
         >
           <Ionicons
             name={isAudioOn ? "mic" : "mic-off"}
@@ -238,7 +251,7 @@ export const CameraViewer: React.FC<CameraViewerProps> = ({ userId = 'user1' }) 
 
         <TouchableOpacity
           style={[styles.controlButton, isVideoOn ? {} : styles.disabledButton]}
-          onPress={switchCamera}
+          onPress={() => switchCamera()}
           disabled={!isVideoOn}
         >
           <Ionicons name="camera-reverse" size={28} color="white" />
